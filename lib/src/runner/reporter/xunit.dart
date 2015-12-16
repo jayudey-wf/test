@@ -68,16 +68,16 @@ class XunitReporter implements Reporter {
   final _subscriptions = new Set<StreamSubscription>();
 
   /// Record of all tests run.
-  Map testCases = {};
+  Map _testCases = {};
 
   /// Number of failures that occur during the test run.
-  int failureCount = 0;
+  int _failureCount = 0;
 
   /// Number of errors that occur during the test run.
-  int errorCount = 0;
+  int _errorCount = 0;
 
   /// Map containing Xunit hierarchy.
-  Map groupStructure = {};
+  Map _groupStructure = {};
 
   /// Watches the tests run by [engine] and records its results.
   static XunitReporter watch(Engine engine, {bool verboseTrace: false}) {
@@ -159,11 +159,11 @@ class XunitReporter implements Reporter {
   void _onStateChange(LiveTest liveTest, State state) {
     if (state.status != Status.complete) {
       if (state.status == Status.running) {
-        if (!testCases.containsKey(liveTest.test)) {
-          testCases[liveTest] = new XunitTestResult(liveTest.individualName,
+        if (!_testCases.containsKey(liveTest.test)) {
+          _testCases[liveTest] = new XunitTestResult(liveTest.individualName,
               liveTest.suite.path, _stopwatch.elapsedMilliseconds);
           List listOfGroups = _orderedGroupList(liveTest.groups);
-          Map listGroup = groupStructure;
+          Map listGroup = _groupStructure;
 
           listOfGroups.forEach((elem) {
             if (!listGroup.containsKey(elem)) {
@@ -174,7 +174,7 @@ class XunitReporter implements Reporter {
 
           listGroup['testResults'] ??= new XunitTestSuite();
 
-          listGroup['testResults'].add(testCases[liveTest]);
+          listGroup['testResults'].add(_testCases[liveTest]);
         }
       }
       return;

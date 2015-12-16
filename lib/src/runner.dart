@@ -88,8 +88,7 @@ class Runner {
             verboseTrace: config.verboseTrace);
         break;
       case "xunit":
-        reporter = XunitReporter.watch(engine,
-        verboseTrace: config.verboseTrace);
+        reporter = XunitReporter.watch(engine);
         break;
     }
 
