@@ -286,9 +286,9 @@ void main() {
           <?xml version="1.0" encoding="UTF-8" ?>
           <testsuite name="All tests" tests="2" errors="0" failures="0" skipped="2">
              <testcase classname="test.dart" name="skip 1" time="0"> </testcase>
-               <skip message="some reason">
+               <skipped message="some reason"/>
              <testcase classname="test.dart" name="skip 2" time="0"> </testcase>
-               <skip message="or another">
+               <skipped message="or another"/>
           </testsuite>""");
     });
   });

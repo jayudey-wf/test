@@ -160,8 +160,15 @@ class XunitReporter implements Reporter {
     if (state.status != Status.complete) {
       if (state.status == Status.running) {
         if (!_testCases.containsKey(liveTest.test)) {
-          _testCases[liveTest] = new XunitTestResult(liveTest.individualName,
-              liveTest.suite.path, _stopwatch.elapsedMilliseconds);
+          String testName = liveTest.individualName;
+          testName = testName.replaceAll('&', '&amp;');
+          testName = testName.replaceAll('<', '&lt;');
+          testName = testName.replaceAll('>', '&gt;');
+          testName = testName.replaceAll('"', '&quot;');
+          testName = testName.replaceAll("'", '&apos;');
+
+          _testCases[liveTest] = new XunitTestResult(
+              testName, liveTest.suite.path, _stopwatch.elapsedMilliseconds);
           List listOfGroups = _orderedGroupList(liveTest.groups);
           Map listGroup = _groupStructure;
 
@@ -180,35 +187,35 @@ class XunitReporter implements Reporter {
       return;
     }
 
-    testCases[liveTest].endTime = _stopwatch.elapsedMilliseconds;
+    _testCases[liveTest].endTime = _stopwatch.elapsedMilliseconds;
 
     if (liveTest.test.metadata.skip) {
-      testCases[liveTest].skipped = true;
+      _testCases[liveTest].skipped = true;
     }
 
     if (liveTest.test.metadata.skipReason != null) {
-      testCases[liveTest].skipReason = liveTest.test.metadata.skipReason;
+      _testCases[liveTest].skipReason = liveTest.test.metadata.skipReason;
     }
   }
 
   /// A callback called when [liveTest] throws [error].
   void _onError(LiveTest liveTest, error, StackTrace stackTrace) {
     if (liveTest.state.status != Status.complete) return;
-    if (testCases[liveTest].error.isEmpty) {
+    if (_testCases[liveTest].error.isEmpty) {
       if (error is TestFailure) {
-        failureCount++;
-        testCases[liveTest].error['failure'] = true;
+        _failureCount++;
+        _testCases[liveTest].error['failure'] = true;
       } else {
-        errorCount++;
-        testCases[liveTest].error['failure'] = false;
+        _errorCount++;
+        _testCases[liveTest].error['failure'] = false;
       }
     }
     String body = terseChain(stackTrace).toString().trim();
     body = body.replaceAll('<', '&lt;');
     body = body.replaceAll('>', '&gt;');
     String name = error.toString().replaceAll('\n', '');
-    testCases[liveTest].error['list'] ??= [];
-    testCases[liveTest].error['list'].add(new XunitFailureResult(name, body));
+    _testCases[liveTest].error['list'] ??= [];
+    _testCases[liveTest].error['list'].add(new XunitFailureResult(name, body));
   }
 
   /// A method used to format individual testcases
@@ -246,8 +253,9 @@ class XunitReporter implements Reporter {
         individualTest += '\n' + ' ' * (counter + 2) + '</testcase>';
       }
       if (test.skipReason != null) {
-        individualTest +=
-            '\n' + ' ' * (counter + 4) + '<skip message="${test.skipReason}">';
+        individualTest += '\n' +
+            ' ' * (counter + 4) +
+            '<skipped message="${test.skipReason}"/>';
       }
       testResults += '\n' + ' ' * (counter + 2) + individualTest;
     });
@@ -336,13 +344,13 @@ class XunitReporter implements Reporter {
     print('<?xml version="1.0" encoding="UTF-8" ?>');
     print(
         '<testsuite name="All tests" tests="${_engine.passed.length + _engine.skipped.length +_engine.failed.length}" '
-        'errors="$errorCount" failures="$failureCount" skipped="${_engine.skipped.length}">');
+        'errors="$_errorCount" failures="$_failureCount" skipped="${_engine.skipped.length}">');
 
-    if (groupStructure['testResults']?.testResults == null) {
-      print(_formatXmlHierarchy(groupStructure).trimRight());
+    if (_groupStructure['testResults']?.testResults == null) {
+      print(_formatXmlHierarchy(_groupStructure).trimRight());
     }
-    if (groupStructure['testResults']?.testResults?.isNotEmpty) {
-      print(_formatTestResults(groupStructure['testResults'].testResults, 1)
+    if (_groupStructure['testResults']?.testResults?.isNotEmpty) {
+      print(_formatTestResults(_groupStructure['testResults'].testResults, 1)
           .substring(1));
     }
 
