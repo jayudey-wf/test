@@ -124,14 +124,9 @@ class XunitReporter implements Reporter {
     if (liveTest.suite is! LoadSuite) {
       if (!_stopwatch.isRunning) _stopwatch.start();
 
-      // The engine surfaces load tests when there are no other tests running,
-      // but because the expanded reporter's output is always visible, we don't
-      // emit information about them unless they fail.
       _subscriptions.add(liveTest.onStateChange
           .listen((state) => _onStateChange(liveTest, state)));
-    } else if (_engine.active.length == 1 &&
-        _engine.active.first == liveTest &&
-        liveTest.test.name.startsWith("compiling ")) {}
+    }
 
     _subscriptions.add(liveTest.onError
         .listen((error) => _onError(liveTest, error.error, error.stackTrace)));
@@ -142,47 +137,45 @@ class XunitReporter implements Reporter {
   /// Return an ordered list of groups that [liveTest] belongs to
   List _orderedGroupList(List<Group> listOfGroups) {
     List separatedList = [];
-    for (int i = listOfGroups.length - 1; i >= 1; i--) {
-      if (i > 1) {
+    if (listOfGroups.length > 1) {
+      separatedList.add(listOfGroups[1].name);
+      for (int i = 2; i < listOfGroups.length; i++) {
         separatedList.add(listOfGroups[i]
             .name
             .replaceAll(listOfGroups[i - 1].name, '')
             .trim());
-      } else {
-        separatedList.add((listOfGroups[1].name));
       }
     }
-    return (separatedList.reversed).toList();
+    return separatedList;
   }
 
   /// A callback called when [liveTest]'s state becomes [state].
   void _onStateChange(LiveTest liveTest, State state) {
     if (state.status != Status.complete) {
-      if (state.status == Status.running) {
-        if (!_testCases.containsKey(liveTest.test)) {
-          String testName = liveTest.individualName;
-          testName = testName.replaceAll('&', '&amp;');
-          testName = testName.replaceAll('<', '&lt;');
-          testName = testName.replaceAll('>', '&gt;');
-          testName = testName.replaceAll('"', '&quot;');
-          testName = testName.replaceAll("'", '&apos;');
+      if (state.status == Status.running &&
+          !_testCases.containsKey(liveTest.test)) {
+        String testName = liveTest.individualName;
+        testName = testName.replaceAll('&', '&amp;');
+        testName = testName.replaceAll('<', '&lt;');
+        testName = testName.replaceAll('>', '&gt;');
+        testName = testName.replaceAll('"', '&quot;');
+        testName = testName.replaceAll("'", '&apos;');
 
-          _testCases[liveTest] = new XunitTestResult(
-              testName, liveTest.suite.path, _stopwatch.elapsedMilliseconds);
-          List listOfGroups = _orderedGroupList(liveTest.groups);
-          Map listGroup = _groupStructure;
+        _testCases[liveTest] = new XunitTestResult(
+            testName, liveTest.suite.path, _stopwatch.elapsedMilliseconds);
+        List listOfGroups = _orderedGroupList(liveTest.groups);
+        Map listGroup = _groupStructure;
 
-          listOfGroups.forEach((elem) {
-            if (!listGroup.containsKey(elem)) {
-              listGroup[elem] = {'testResults': new XunitTestSuite()};
-            }
-            listGroup = listGroup[elem];
-          });
+        listOfGroups.forEach((elem) {
+          if (!listGroup.containsKey(elem)) {
+            listGroup[elem] = {'testResults': new XunitTestSuite()};
+          }
+          listGroup = listGroup[elem];
+        });
 
-          listGroup['testResults'] ??= new XunitTestSuite();
+        listGroup['testResults'] ??= new XunitTestSuite();
 
-          listGroup['testResults'].add(_testCases[liveTest]);
-        }
+        listGroup['testResults'].add(_testCases[liveTest]);
       }
       return;
     }
@@ -191,10 +184,9 @@ class XunitReporter implements Reporter {
 
     if (liveTest.test.metadata.skip) {
       _testCases[liveTest].skipped = true;
-    }
-
-    if (liveTest.test.metadata.skipReason != null) {
-      _testCases[liveTest].skipReason = liveTest.test.metadata.skipReason;
+      if (liveTest.test.metadata.skipReason != null) {
+        _testCases[liveTest].skipReason = liveTest.test.metadata.skipReason;
+      }
     }
   }
 
@@ -270,17 +262,15 @@ class XunitReporter implements Reporter {
     groupStructure.forEach((key, value) {
       if (key == 'testResults') {
         value.testResults.forEach((element) {
-          if (element is XunitTestResult) {
-            currentSuite.tests++;
-            if (element.skipped) {
-              currentSuite.skipped++;
-            }
-            if (element.error.isNotEmpty) {
-              if (element.error['failure'] == true) {
-                currentSuite.failed++;
-              } else {
-                currentSuite.errored++;
-              }
+          currentSuite.tests++;
+          if (element.skipped) {
+            currentSuite.skipped++;
+          }
+          if (element.error.isNotEmpty) {
+            if (element.error['failure'] == true) {
+              currentSuite.failed++;
+            } else {
+              currentSuite.errored++;
             }
           }
         });
@@ -320,7 +310,7 @@ class XunitReporter implements Reporter {
       if (xmlMap[elem] is Map) {
         var space = ' ';
         result += space * counter +
-            '<testsuite name="${elem}" ${_formatTestSuiteHeading(xmlMap[elem])}>${_formatTestResults(xmlMap[elem]["testResults"].testResults, counter)}\n';
+            '<testsuite name="$elem" ${_formatTestSuiteHeading(xmlMap[elem])}>${_formatTestResults(xmlMap[elem]["testResults"].testResults, counter)}\n';
         result += _formatXmlHierarchy(xmlMap[elem], counter: counter);
         result += space * counter + '</testsuite>';
         if (counter > 0) {
