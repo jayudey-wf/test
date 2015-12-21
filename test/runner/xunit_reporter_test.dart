@@ -15,7 +15,7 @@ void main() {
   test("reports when no tests are run", () {
     d.file("test.dart", "void main() {}").create();
 
-    var test = runTest(["test.dart"], reporter: 'xunit');
+    var test = runTest(["test.dart"], reporter: "xunit");
     test.stdout.expect(consumeThrough(contains("No tests ran.")));
     test.shouldExit(0);
   });
@@ -142,7 +142,7 @@ void main() {
         </testsuite>""");
   });
 
-  test('update testSuite heading with correct number of tests', () {
+  test("update testSuite heading with correct number of tests", () {
     _expectReport(
         """
         group('outerGroup',(){

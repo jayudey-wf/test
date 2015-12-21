@@ -15,17 +15,28 @@ import '../engine.dart';
 import '../load_suite.dart';
 import '../reporter.dart';
 
-class XunitFailureResult {
+class XunitFailure {
   String name;
   String stack;
 
-  XunitFailureResult(this.name, this.stack);
+  XunitFailure(this.name, this.stack);
+}
+
+class XunitFailureResult {
+  bool failure;
+  List<XunitFailure> failures = [];
+
+  XunitFailureResult();
+
+  add(XunitFailure failure) {
+    failures.add(failure);
+  }
 }
 
 class XunitTestResult {
   int beginningTime;
   int endTime;
-  Map error = {};
+  XunitFailureResult error;
   String name;
   String path;
   bool skipped = false;
@@ -38,8 +49,16 @@ class XunitTestSuite {
   int errored = 0;
   int failed = 0;
   int skipped = 0;
-  List testResults = [];
+  List<XunitTestResult> testResults = [];
+  Map<String, XunitTestSuite> testSuites = {};
   int tests = 0;
+
+  XunitTestSuite() {
+    this.errored = 0;
+    this.failed = 0;
+    this.skipped = 0;
+    this.tests = 0;
+  }
 
   add(XunitTestResult test) {
     testResults.add(test);
@@ -77,14 +96,16 @@ class XunitReporter implements Reporter {
   int _errorCount = 0;
 
   /// Map containing Xunit hierarchy.
-  Map _groupStructure = {};
+  XunitTestSuite _groupStructure = new XunitTestSuite();
 
   /// Watches the tests run by [engine] and records its results.
-  static XunitReporter watch(Engine engine, {bool verboseTrace: false}) {
-    return new XunitReporter._(engine, verboseTrace: verboseTrace);
+  static XunitReporter watch(Engine engine) {
+    return new XunitReporter._(engine);
   }
 
-  XunitReporter._(this._engine, {bool verboseTrace: false}) {
+  XunitReporter._(this._engine) {
+    _groupStructure.testSuites['rootNode'] = new XunitTestSuite();
+
     _subscriptions.add(_engine.onTestStarted.listen(_onTestStarted));
 
     /// Convert the future to a stream so that the subscription can be paused or
@@ -105,6 +126,8 @@ class XunitReporter implements Reporter {
 
   void resume() {
     if (!_paused) return;
+    _paused = false;
+
     if (_stopwatchStarted) _stopwatch.start();
 
     for (var subscription in _subscriptions) {
@@ -134,9 +157,8 @@ class XunitReporter implements Reporter {
     _subscriptions.add(liveTest.onPrint.listen((line) {}));
   }
 
-  /// Return an ordered list of groups that [liveTest] belongs to
-  List _orderedGroupList(List<Group> listOfGroups) {
-    List separatedList = [];
+  List<String> _orderedGroupList(List<Group> listOfGroups) {
+    List<String> separatedList = [];
     if (listOfGroups.length > 1) {
       separatedList.add(listOfGroups[1].name);
       for (int i = 2; i < listOfGroups.length; i++) {
@@ -152,8 +174,7 @@ class XunitReporter implements Reporter {
   /// A callback called when [liveTest]'s state becomes [state].
   void _onStateChange(LiveTest liveTest, State state) {
     if (state.status != Status.complete) {
-      if (state.status == Status.running &&
-          !_testCases.containsKey(liveTest.test)) {
+      if (state.status == Status.running) {
         String testName = liveTest.individualName;
         testName = testName.replaceAll('&', '&amp;');
         testName = testName.replaceAll('<', '&lt;');
@@ -164,18 +185,16 @@ class XunitReporter implements Reporter {
         _testCases[liveTest] = new XunitTestResult(
             testName, liveTest.suite.path, _stopwatch.elapsedMilliseconds);
         List listOfGroups = _orderedGroupList(liveTest.groups);
-        Map listGroup = _groupStructure;
+        XunitTestSuite listGroup = _groupStructure.testSuites['rootNode'];
 
-        listOfGroups.forEach((elem) {
-          if (!listGroup.containsKey(elem)) {
-            listGroup[elem] = {'testResults': new XunitTestSuite()};
+        listOfGroups.forEach((String elem) {
+          if (!listGroup.testSuites.containsKey(elem)) {
+            listGroup.testSuites[elem] = new XunitTestSuite();
           }
-          listGroup = listGroup[elem];
+          listGroup = listGroup.testSuites[elem];
         });
 
-        listGroup['testResults'] ??= new XunitTestSuite();
-
-        listGroup['testResults'].add(_testCases[liveTest]);
+        listGroup.testResults.add(_testCases[liveTest]);
       }
       return;
     }
@@ -193,89 +212,89 @@ class XunitReporter implements Reporter {
   /// A callback called when [liveTest] throws [error].
   void _onError(LiveTest liveTest, error, StackTrace stackTrace) {
     if (liveTest.state.status != Status.complete) return;
-    if (_testCases[liveTest].error.isEmpty) {
+    if (_testCases[liveTest].error == null) {
+      _testCases[liveTest].error = new XunitFailureResult();
       if (error is TestFailure) {
         _failureCount++;
-        _testCases[liveTest].error['failure'] = true;
+        _testCases[liveTest].error.failure = true;
       } else {
         _errorCount++;
-        _testCases[liveTest].error['failure'] = false;
+        _testCases[liveTest].error.failure = false;
       }
     }
     String body = terseChain(stackTrace).toString().trim();
     body = body.replaceAll('<', '&lt;');
     body = body.replaceAll('>', '&gt;');
-    String name = error.toString().replaceAll('\n', '');
-    _testCases[liveTest].error['list'] ??= [];
-    _testCases[liveTest].error['list'].add(new XunitFailureResult(name, body));
+    _testCases[liveTest]
+        .error
+        .add(new XunitFailure(error.toString().replaceAll('\n', ''), body));
   }
 
   /// A method used to format individual testcases
-  String _formatTestResults(List list, int counter) {
+  String _formatTestResults(List<XunitTestResult> list, int depth) {
     String testResults = '';
     list.forEach((XunitTestResult test) {
       String individualTest = '';
-      if (test.error.isEmpty) {
+      if (test.error == null) {
         individualTest +=
             '<testcase classname=\"${test.path}\" name=\"${test.name}\" time=\"${test.endTime - test.beginningTime}\"> </testcase>';
       } else {
         individualTest +=
             '<testcase classname=\"${test.path}\" name=\"${test.name}\">';
-        if (test.error['failure']) {
-          test.error['list'].forEach((XunitFailureResult testFailure) {
+        if (test.error.failure) {
+          test.error.failures.forEach((XunitFailure testFailure) {
             individualTest += '\n' +
-                ' ' * (counter + 4) +
+                ' ' * (depth + 4) +
                 '<failure message="${testFailure.name}">';
             testFailure.stack.split('\n').forEach((line) {
-              individualTest += '\n' + ' ' * (counter + 6) + line;
+              individualTest += '\n' + ' ' * (depth + 6) + line;
             });
-            individualTest += '\n' + ' ' * (counter + 4) + '</failure>';
+            individualTest += '\n' + ' ' * (depth + 4) + '</failure>';
           });
         } else {
-          test.error['list'].forEach((XunitFailureResult testError) {
+          test.error.failures.forEach((XunitFailure testError) {
             individualTest += '\n' +
-                ' ' * (counter + 4) +
+                ' ' * (depth + 4) +
                 '<error message="${testError.name}">';
             testError.stack.split('\n').forEach((line) {
-              individualTest += '\n' + ' ' * (counter + 6) + line;
+              individualTest += '\n' + ' ' * (depth + 6) + line;
             });
-            individualTest += '\n' + ' ' * (counter + 4) + '</error>';
+            individualTest += '\n' + ' ' * (depth + 4) + '</error>';
           });
         }
-        individualTest += '\n' + ' ' * (counter + 2) + '</testcase>';
+        individualTest += '\n' + ' ' * (depth + 2) + '</testcase>';
       }
       if (test.skipReason != null) {
         individualTest += '\n' +
-            ' ' * (counter + 4) +
+            ' ' * (depth + 4) +
             '<skipped message="${test.skipReason}"/>';
       }
-      testResults += '\n' + ' ' * (counter + 2) + individualTest;
+      testResults += '\n' + ' ' * (depth + 2) + individualTest;
     });
     return testResults;
   }
 
   /// Calculate the test totals for a suite and its children
-  XunitTestSuite _suiteResults(Map group, XunitTestSuite suite) {
-    Map groupStructure = group;
+  XunitTestSuite _suiteResults(
+      Map<String, XunitTestSuite> group, XunitTestSuite suite) {
     XunitTestSuite currentSuite = suite;
 
-    groupStructure.forEach((key, value) {
-      if (key == 'testResults') {
-        value.testResults.forEach((element) {
-          currentSuite.tests++;
-          if (element.skipped) {
-            currentSuite.skipped++;
+    group.forEach((key, value) {
+      value.testResults.forEach((XunitTestResult element) {
+        currentSuite.tests++;
+        if (element.skipped) {
+          currentSuite.skipped++;
+        }
+        if (element.error != null) {
+          if (element.error.failure) {
+            currentSuite.failed++;
+          } else {
+            currentSuite.errored++;
           }
-          if (element.error.isNotEmpty) {
-            if (element.error['failure'] == true) {
-              currentSuite.failed++;
-            } else {
-              currentSuite.errored++;
-            }
-          }
-        });
-      } else {
-        _suiteResults(groupStructure[key], currentSuite);
+        }
+      });
+      if (group[key].testSuites.isNotEmpty) {
+        _suiteResults(group[key].testSuites, currentSuite);
       }
     });
 
@@ -283,8 +302,22 @@ class XunitReporter implements Reporter {
   }
 
   /// Format testsuite headings
-  String _formatTestSuiteHeading(Map group) {
-    XunitTestSuite suite = _suiteResults(group, group['testResults']);
+  String _formatTestSuiteHeading(XunitTestSuite group) {
+    XunitTestSuite suite = _suiteResults(group.testSuites, group);
+
+    suite.testResults.forEach((XunitTestResult element) {
+      suite.tests++;
+      if (element.skipped) {
+        suite.skipped++;
+      }
+      if (element.error != null) {
+        if (element.error.failure) {
+          suite.failed++;
+        } else {
+          suite.errored++;
+        }
+      }
+    });
 
     String suiteHeading = '';
     if (suite.tests > 0) {
@@ -303,17 +336,17 @@ class XunitReporter implements Reporter {
   }
 
   /// A method used to create a nested xml hierarchy
-  String _formatXmlHierarchy(Map xmlMap, {int counter: 0}) {
-    counter++;
-    String result = "";
-    xmlMap.keys.forEach((elem) {
-      if (xmlMap[elem] is Map) {
+  String _formatXmlHierarchy(XunitTestSuite xmlMap, {int depth: 0}) {
+    depth++;
+    String result = '';
+    xmlMap.testSuites.keys.forEach((String elem) {
+      if (xmlMap.testSuites[elem] is XunitTestSuite) {
         var space = ' ';
-        result += space * counter +
-            '<testsuite name="$elem" ${_formatTestSuiteHeading(xmlMap[elem])}>${_formatTestResults(xmlMap[elem]["testResults"].testResults, counter)}\n';
-        result += _formatXmlHierarchy(xmlMap[elem], counter: counter);
-        result += space * counter + '</testsuite>';
-        if (counter > 0) {
+        result += space * depth +
+            '<testsuite name="$elem" ${_formatTestSuiteHeading(xmlMap.testSuites[elem])}>${_formatTestResults(xmlMap.testSuites[elem].testResults, depth)}\n';
+        result += _formatXmlHierarchy(xmlMap.testSuites[elem], depth: depth);
+        result += space * depth + '</testsuite>';
+        if (depth > 0) {
           result += '\n';
         }
       }
@@ -336,18 +369,20 @@ class XunitReporter implements Reporter {
         '<testsuite name="All tests" tests="${_engine.passed.length + _engine.skipped.length +_engine.failed.length}" '
         'errors="$_errorCount" failures="$_failureCount" skipped="${_engine.skipped.length}">');
 
-    if (_groupStructure['testResults']?.testResults == null) {
-      print(_formatXmlHierarchy(_groupStructure).trimRight());
+    if (_groupStructure.testSuites['rootNode'].testSuites.isNotEmpty) {
+      print(
+          _formatXmlHierarchy(_groupStructure.testSuites['rootNode']).trimRight());
     }
-    if (_groupStructure['testResults']?.testResults?.isNotEmpty) {
-      print(_formatTestResults(_groupStructure['testResults'].testResults, 1)
-          .substring(1));
+    if (_groupStructure.testSuites['rootNode'].testResults?.isNotEmpty) {
+      print(
+          _formatTestResults(_groupStructure.testSuites['rootNode'].testResults, 1)
+              .substring(1));
     }
 
     print('</testsuite>');
 
     if (_engine.liveTests.isEmpty) {
-      print("No tests ran.");
+      print('No tests ran.');
     }
   }
 }
