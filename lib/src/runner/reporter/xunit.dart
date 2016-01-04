@@ -171,16 +171,19 @@ class XunitReporter implements Reporter {
     return separatedList;
   }
 
+  String _sanitizeXml(String original) {
+    String updated = original.replaceAll('&', '&amp;');
+    updated = updated.replaceAll('<', '&lt;');
+    updated = updated.replaceAll('>', '&gt;');
+    updated = updated.replaceAll('"', '&quot;');
+    return updated = updated.replaceAll("'", '&apos;');
+  }
+
   /// A callback called when [liveTest]'s state becomes [state].
   void _onStateChange(LiveTest liveTest, State state) {
     if (state.status != Status.complete) {
       if (state.status == Status.running) {
-        String testName = liveTest.individualName;
-        testName = testName.replaceAll('&', '&amp;');
-        testName = testName.replaceAll('<', '&lt;');
-        testName = testName.replaceAll('>', '&gt;');
-        testName = testName.replaceAll('"', '&quot;');
-        testName = testName.replaceAll("'", '&apos;');
+        String testName = _sanitizeXml(liveTest.individualName);
 
         _testCases[liveTest] = new XunitTestResult(
             testName, liveTest.suite.path, _stopwatch.elapsedMilliseconds);
@@ -222,9 +225,7 @@ class XunitReporter implements Reporter {
         _testCases[liveTest].error.failure = false;
       }
     }
-    String body = terseChain(stackTrace).toString().trim();
-    body = body.replaceAll('<', '&lt;');
-    body = body.replaceAll('>', '&gt;');
+    String body = _sanitizeXml(terseChain(stackTrace).toString().trim());
     _testCases[liveTest]
         .error
         .add(new XunitFailure(error.toString().replaceAll('\n', ''), body));
@@ -235,39 +236,48 @@ class XunitReporter implements Reporter {
     String testResults = '';
     list.forEach((XunitTestResult test) {
       String individualTest = '';
-      if (test.error == null) {
+      String testName = _sanitizeXml(test.name);
+      if (test.error == null && !test.skipped) {
         individualTest +=
-            '<testcase classname=\"${test.path}\" name=\"${test.name}\" time=\"${test.endTime - test.beginningTime}\"> </testcase>';
+            '<testcase classname=\"${test.path}\" name=\"${testName}\" time=\"${test.endTime - test.beginningTime}\"> </testcase>';
       } else {
-        individualTest +=
-            '<testcase classname=\"${test.path}\" name=\"${test.name}\">';
-        if (test.error.failure) {
-          test.error.failures.forEach((XunitFailure testFailure) {
-            individualTest += '\n' +
-                ' ' * (depth + 4) +
-                '<failure message="${testFailure.name}">';
-            testFailure.stack.split('\n').forEach((line) {
-              individualTest += '\n' + ' ' * (depth + 6) + line;
+        if (test.error != null) {
+          individualTest +=
+              '<testcase classname=\"${test.path}\" name=\"${testName}\">';
+          if (test.error.failure) {
+            test.error.failures.forEach((XunitFailure testFailure) {
+              individualTest += '\n' +
+                  ' ' * (depth + 4) +
+                  '<failure message="${_sanitizeXml(testFailure.name)}">';
+              testFailure.stack.split('\n').forEach((line) {
+                individualTest += '\n' + ' ' * (depth + 6) + line;
+              });
+              individualTest += '\n' + ' ' * (depth + 4) + '</failure>';
             });
-            individualTest += '\n' + ' ' * (depth + 4) + '</failure>';
-          });
+          } else {
+            test.error.failures.forEach((XunitFailure testError) {
+              individualTest += '\n' +
+                  ' ' * (depth + 4) +
+                  '<error message="${_sanitizeXml(testError.name)}">';
+              testError.stack.split('\n').forEach((line) {
+                individualTest += '\n' + ' ' * (depth + 6) + line;
+              });
+              individualTest += '\n' + ' ' * (depth + 4) + '</error>';
+            });
+          }
+          individualTest += '\n' + ' ' * (depth + 2) + '</testcase>';
         } else {
-          test.error.failures.forEach((XunitFailure testError) {
+          individualTest +=
+              '<testcase classname=\"${test.path}\" name=\"${testName}\">';
+          if (test.skipReason != null) {
             individualTest += '\n' +
                 ' ' * (depth + 4) +
-                '<error message="${testError.name}">';
-            testError.stack.split('\n').forEach((line) {
-              individualTest += '\n' + ' ' * (depth + 6) + line;
-            });
-            individualTest += '\n' + ' ' * (depth + 4) + '</error>';
-          });
+                '<skipped message="${_sanitizeXml(test.skipReason)}"/>';
+          } else {
+            individualTest += '\n' + ' ' * (depth + 4) + '<skipped/>';
+          }
+          individualTest += '\n' + ' ' * (depth + 2) + '</testcase>';
         }
-        individualTest += '\n' + ' ' * (depth + 2) + '</testcase>';
-      }
-      if (test.skipReason != null) {
-        individualTest += '\n' +
-            ' ' * (depth + 4) +
-            '<skipped message="${test.skipReason}"/>';
       }
       testResults += '\n' + ' ' * (depth + 2) + individualTest;
     });
@@ -370,13 +380,12 @@ class XunitReporter implements Reporter {
         'errors="$_errorCount" failures="$_failureCount" skipped="${_engine.skipped.length}">');
 
     if (_groupStructure.testSuites['rootNode'].testSuites.isNotEmpty) {
-      print(
-          _formatXmlHierarchy(_groupStructure.testSuites['rootNode']).trimRight());
+      print(_formatXmlHierarchy(_groupStructure.testSuites['rootNode'])
+          .trimRight());
     }
     if (_groupStructure.testSuites['rootNode'].testResults?.isNotEmpty) {
-      print(
-          _formatTestResults(_groupStructure.testSuites['rootNode'].testResults, 1)
-              .substring(1));
+      print(_formatTestResults(
+          _groupStructure.testSuites['rootNode'].testResults, 1).substring(1));
     }
 
     print('</testsuite>');

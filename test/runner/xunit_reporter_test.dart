@@ -208,9 +208,15 @@ void main() {
           """
           <?xml version="1.0" encoding="UTF-8" ?>
           <testsuite name="All tests" tests="3" errors="0" failures="0" skipped="3">
-             <testcase classname="test.dart" name="skip 1" time="0"> </testcase>
-             <testcase classname="test.dart" name="skip 2" time="0"> </testcase>
-             <testcase classname="test.dart" name="skip 3" time="0"> </testcase>
+             <testcase classname="test.dart" name="skip 1">
+               <skipped/>
+             </testcase>
+             <testcase classname="test.dart" name="skip 2">
+               <skipped/>
+             </testcase>
+             <testcase classname="test.dart" name="skip 3">
+               <skipped/>
+             </testcase>
           </testsuite>""");
     });
 
@@ -226,7 +232,9 @@ void main() {
           <?xml version="1.0" encoding="UTF-8" ?>
           <testsuite name="All tests" tests="1" errors="0" failures="0" skipped="1">
            <testsuite name="skip" tests="1" skipped="1">
-             <testcase classname="test.dart" name="" time="0"> </testcase>
+             <testcase classname="test.dart" name="">
+               <skipped/>
+             </testcase>
            </testsuite>
           </testsuite>""");
     });
@@ -241,9 +249,13 @@ void main() {
           """
           <?xml version="1.0" encoding="UTF-8" ?>
           <testsuite name="All tests" tests="4" errors="0" failures="0" skipped="2">
-             <testcase classname="test.dart" name="skip 1" time="0"> </testcase>
+             <testcase classname="test.dart" name="skip 1">
+               <skipped/>
+             </testcase>
              <testcase classname="test.dart" name="success 1" time="0"> </testcase>
-             <testcase classname="test.dart" name="skip 2" time="0"> </testcase>
+             <testcase classname="test.dart" name="skip 2">
+               <skipped/>
+             </testcase>
              <testcase classname="test.dart" name="success 2" time="0"> </testcase>
           </testsuite>""");
     });
@@ -265,14 +277,18 @@ void main() {
                  test.dart 6:35  main.&lt;fn&gt;
                </failure>
              </testcase>
-             <testcase classname="test.dart" name="skip 1" time="0"> </testcase>
+             <testcase classname="test.dart" name="skip 1">
+               <skipped/>
+             </testcase>
              <testcase classname="test.dart" name="success 1" time="0"> </testcase>
              <testcase classname="test.dart" name="failure 2">
                <failure message="oh no">
                  test.dart 9:35  main.&lt;fn&gt;
                </failure>
              </testcase>
-             <testcase classname="test.dart" name="skip 2" time="0"> </testcase>
+             <testcase classname="test.dart" name="skip 2">
+               <skipped/>
+             </testcase>
              <testcase classname="test.dart" name="success 2" time="0"> </testcase>
           </testsuite>""");
     });
@@ -285,10 +301,12 @@ void main() {
           """
           <?xml version="1.0" encoding="UTF-8" ?>
           <testsuite name="All tests" tests="2" errors="0" failures="0" skipped="2">
-             <testcase classname="test.dart" name="skip 1" time="0"> </testcase>
+             <testcase classname="test.dart" name="skip 1">
                <skipped message="some reason"/>
-             <testcase classname="test.dart" name="skip 2" time="0"> </testcase>
+             </testcase>
+             <testcase classname="test.dart" name="skip 2">
                <skipped message="or another"/>
+             </testcase>
           </testsuite>""");
     });
   });
