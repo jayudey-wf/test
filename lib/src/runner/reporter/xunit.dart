@@ -232,56 +232,50 @@ class XunitReporter implements Reporter {
   }
 
   /// A method used to format individual testcases
-  String _formatTestResults(List<XunitTestResult> list, int depth) {
-    String testResults = '';
+  String _formatTestResults(List<XunitTestResult> list, {int depth}) {
+    String results = '';
     list.forEach((XunitTestResult test) {
       String individualTest = '';
       String testName = _sanitizeXml(test.name);
       if (test.error == null && !test.skipped) {
         individualTest +=
-            '<testcase classname=\"${test.path}\" name=\"${testName}\" time=\"${test.endTime - test.beginningTime}\"> </testcase>';
+            _indentLine('<testcase classname=\"${test.path}\" name=\"${testName}\" time=\"${test.endTime - test.beginningTime}\"> </testcase>', depth);
       } else {
         if (test.error != null) {
           individualTest +=
-              '<testcase classname=\"${test.path}\" name=\"${testName}\">';
+              _indentLine('<testcase classname=\"${test.path}\" name=\"${testName}\">', depth);
           if (test.error.failure) {
             test.error.failures.forEach((XunitFailure testFailure) {
-              individualTest += '\n' +
-                  ' ' * (depth + 4) +
-                  '<failure message="${_sanitizeXml(testFailure.name)}">';
+              individualTest += _indentLine('<failure message="${_sanitizeXml(testFailure.name)}">', depth + 1);
               testFailure.stack.split('\n').forEach((line) {
-                individualTest += '\n' + ' ' * (depth + 6) + line;
+                individualTest += _indentLine(line, depth + 2);
               });
-              individualTest += '\n' + ' ' * (depth + 4) + '</failure>';
+              individualTest += _indentLine('</failure>', depth + 1);
             });
           } else {
             test.error.failures.forEach((XunitFailure testError) {
-              individualTest += '\n' +
-                  ' ' * (depth + 4) +
-                  '<error message="${_sanitizeXml(testError.name)}">';
+              individualTest += _indentLine('<error message="${_sanitizeXml(testError.name)}">', depth + 1);
               testError.stack.split('\n').forEach((line) {
-                individualTest += '\n' + ' ' * (depth + 6) + line;
+                individualTest += _indentLine(line, depth + 2);
               });
-              individualTest += '\n' + ' ' * (depth + 4) + '</error>';
+              individualTest += _indentLine('</error>', depth + 1);
             });
           }
-          individualTest += '\n' + ' ' * (depth + 2) + '</testcase>';
+          individualTest += _indentLine('</testcase>', depth);
         } else {
           individualTest +=
-              '<testcase classname=\"${test.path}\" name=\"${testName}\">';
+              _indentLine('<testcase classname=\"${test.path}\" name=\"${testName}\">', depth);
           if (test.skipReason != null) {
-            individualTest += '\n' +
-                ' ' * (depth + 4) +
-                '<skipped message="${_sanitizeXml(test.skipReason)}"/>';
+            individualTest += _indentLine('<skipped message="${_sanitizeXml(test.skipReason)}"/>', depth + 1);
           } else {
-            individualTest += '\n' + ' ' * (depth + 4) + '<skipped/>';
+            individualTest += _indentLine('<skipped/>', depth + 1);
           }
-          individualTest += '\n' + ' ' * (depth + 2) + '</testcase>';
+          individualTest += _indentLine('</testcase>', depth);
         }
       }
-      testResults += '\n' + ' ' * (depth + 2) + individualTest;
+      results += individualTest;
     });
-    return testResults;
+    return results;
   }
 
   /// Calculate the test totals for a suite and its children
@@ -346,22 +340,25 @@ class XunitReporter implements Reporter {
   }
 
   /// A method used to create a nested xml hierarchy
-  String _formatXmlHierarchy(XunitTestSuite xmlMap, {int depth: 0}) {
-    depth++;
+  String _formatXmlHierarchy(XunitTestSuite xmlMap, {int depth: 1}) {
     String result = '';
     xmlMap.testSuites.keys.forEach((String elem) {
       if (xmlMap.testSuites[elem] is XunitTestSuite) {
-        var space = ' ';
-        result += space * depth +
-            '<testsuite name="$elem" ${_formatTestSuiteHeading(xmlMap.testSuites[elem])}>${_formatTestResults(xmlMap.testSuites[elem].testResults, depth)}\n';
-        result += _formatXmlHierarchy(xmlMap.testSuites[elem], depth: depth);
-        result += space * depth + '</testsuite>';
-        if (depth > 0) {
-          result += '\n';
-        }
+        var heading = _formatTestSuiteHeading(xmlMap.testSuites[elem]);
+        result += _indentLine('<testsuite name="$elem" $heading>', depth);
+        result += _formatTestResults(xmlMap.testSuites[elem].testResults, depth: depth + 1);
+        result += _formatXmlHierarchy(xmlMap.testSuites[elem], depth: depth + 1);
+        result += _indentLine('</testsuite>', depth);
       }
     });
     return result;
+  }
+
+  /// Indents a line by [depth] number of soft-tabs (2 space tabs). Also adds
+  /// a newline at the end of the line.
+  String _indentLine(String s, int depth) {
+    if (depth <= 0) return s;
+    return '  ' * depth + s + '\n';
   }
 
   /// A callback called when the engine is finished running tests.
@@ -385,7 +382,7 @@ class XunitReporter implements Reporter {
     }
     if (_groupStructure.testSuites['rootNode'].testResults?.isNotEmpty) {
       print(_formatTestResults(
-          _groupStructure.testSuites['rootNode'].testResults, 1).substring(1));
+          _groupStructure.testSuites['rootNode'].testResults, depth: 1).substring(1));
     }
 
     print('</testsuite>');
