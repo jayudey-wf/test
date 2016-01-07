@@ -382,7 +382,7 @@ class XunitReporter implements Reporter {
     }
     if (_groupStructure.testSuites['rootNode'].testResults?.isNotEmpty) {
       print(_formatTestResults(
-          _groupStructure.testSuites['rootNode'].testResults, depth: 1).substring(1));
+          _groupStructure.testSuites['rootNode'].testResults, depth: 1).trimRight());
     }
 
     print('</testsuite>');
